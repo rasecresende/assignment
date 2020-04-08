@@ -1,0 +1,91 @@
+library(Matching)
+library(rgenoud)
+
+foo <- read.csv(url("https://course-resources.minerva.kgi.edu/uploaded_files/mke/00089202-1711/daughters.csv"))
+
+head(foo)
+
+#linear regression model
+lm <- lm(foo$nowtot ~ foo$hasgirls + foo$Dems + foo$Repubs + foo$Christian + foo$age + foo$srvlng + foo$demvote)
+summary(lm)
+confint(lm)
+
+# Setting variables
+X <- cbind(foo$Dems, foo$Repubs, foo$Christian, foo$age, foo$srvlng, foo$demvote)
+Tr <- foo$hasgirls
+Y <- foo$nowtot 
+
+# Checking the balance for the non-matched data
+mout <- Match(Tr = Tr, X = X)
+summary(mout)
+
+set.seed(123)
+mb <- MatchBalance(foo$hasgirls ~ foo$Dems + 
+                   foo$Repubs + foo$Christian + foo$age + foo$srvlng + foo$demvote, nboots = 1000, data = foo)
+                   
+                  
+set.seed(123)
+
+# Running genetic matching
+genout <- GenMatch(Tr = Tr, X = X, unif.seed = 123, int.seed = 92485, pop.size = 20, nboots = 250)
+
+mout <- Match(X=X, Tr=Tr, Weight.matrix = genout)
+summary(mout)
+
+# Checking the balance for the matched dataset 
+set.seed(123)
+mb <- MatchBalance(hasgirls ~ Dems + Repubs + Christian + age + 
+                   srvlng + demvote, data=foo, match.out = mout)
+                   
+# obtaining the estimated ATT and s.e.
+rr  <- Match(Y=Y, X=X, Tr=Tr, Weight.matrix = genout);
+summary(rr)
+
+#Calculating Confidence Intervals
+upper_confint <- 0.84936 + (2.2167*1.96)
+lower_confint <- 0.84936 - (2.2167*1.96)
+
+upper_confint
+lower_confint
+
+# Data with the new definition of treatment 
+newfoo.treat <- foo[foo$ngirls >= 2 & foo$hasboys == 0, ]
+newfoo.control <- foo[foo$nboys >= 2 & foo$hasgirls == 0, ]
+new.foo <- rbind(newfoo.treat,newfoo.control)
+
+# Linear Regression 
+lm2 <- lm(new.foo$nowtot ~ new.foo$hasgirls + new.foo$Dems + new.foo$Repubs + new.foo$Christian + new.foo$age + 
+          new.foo$srvlng + new.foo$demvote)
+summary(lm2)
+confint(lm2)
+
+# Checking the balance for the non-matched data
+X <- cbind(new.foo$Dems, new.foo$Repubs, new.foo$Christian, new.foo$age, new.foo$srvlng, new.foo$demvote)
+
+mout <- Match(Tr = new.foo$hasgirls, X = X)
+summary(mout)
+
+set.seed(123)
+mb <- MatchBalance(new.foo$hasgirls ~ new.foo$Dems + new.foo$Repubs + 
+                   new.foo$Christian +  new.foo$age + new.foo$srvlng + new.foo$demvote, nboots = 1000,data = new.foo)
+
+# Running Gen Match
+genout <- GenMatch(X=X,Tr=new.foo$hasgirls, unif.seed = 123, int.seed = 92485, pop.size = 20,print.level = 1,nboots=250,wait.generations = 5)
+
+mout <- Match(X=X, Tr=new.foo$hasgirls, Weight.matrix = genout)
+summary(mout)
+
+# Checking the balance for the matched dataset 
+set.seed(123)
+mb <- MatchBalance(hasgirls ~ Dems + Repubs + Christian +  age + srvlng + demvote,data=new.foo,match.out = mout)
+
+#obtaining estimated ATT and s.e
+rr2 <- Match(Y = new.foo$nowtot, X=X, Tr=new.foo$hasgirls, Weight.matrix = genout)
+summary(rr2)
+
+# Confidence Intervals
+upper_confint <- 11.383 + (4.0247*1.96)
+lower_confint <- 11.383 - (4.0247*1.96)
+
+upper_confint
+lower_confint
